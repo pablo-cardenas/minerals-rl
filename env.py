@@ -96,14 +96,17 @@ for _ in range(10):
         truck_first.travel_remaining = distance
 
         if list_place[truck_first.travel_destination].queue:
-            truck_next = list_place[truck.travel_destination].queue.pop(0)
+            i_truck_next = list_place[truck.travel_destination].queue.pop(0)
+            truck_next = list_truck[i_truck_next]
             truck_next.status = 'work'
-            trck_next.work_place = truck_next.travel_destination
+            truck_next.work_place = truck_next.travel_destination
             truck_next.work_remaining = capacity
 
     elif truck_first.status == 'travel':
-        if list_place[truck.travel_destination].queue:
+        if list_place[truck_first.travel_destination].queue:
             truck_first.status = 'queue'
+            list_place[truck.travel_destination]
         else:
-            truck_first.status = "work
-            
+            truck_first.status = "work"
+            truck_first.work_place = truck_first.travel_destination
+            truck_next.work_remaining = capacity
