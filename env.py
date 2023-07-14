@@ -3,49 +3,107 @@ from dataclasses import field
 from heapq import heappop
 from heapq import heappush
 from pprint import pprint
-
+import numpy as np
+from numpy.random import default_rng
 
 @dataclass
 class Place:
     current: int | None = None
     incoming: list[int] = field(default_factory=list)
+    queue: list[int] = field(default_factory=list)
 
 
 @dataclass
 class Truck:
-    fromPlace: tuple[int, int] | None = None
-    toPlace: tuple[int, int] | None = None
-    departure_time: float = 0
+    travel_origin: tuple[int, int] | None = None
+    travel_destination: tuple[int, int] | None = None
+    travel_remaining: float = 0
+    work_place: tuple[int, int] | None = None
     work_remaining: float = 0
-    arrival_time: float = 0
+    status : str
 
 
-num_places = 3
+rng = default_rng(42)
 num_trucks = 6
-places = [[Place() for _ in range(num_places)] for _ in range(2)]
-trucks = [Truck() for _ in range(num_trucks)]
-
-
-def go(truck: int, place: tuple[int, int], departure_time: float):
-    # Append truck to incomming 
-    places[place[0]][place[1]].incoming.append(truck)
-
-    trucks[truck].fromPlace = trucks[truck].toPlace
-    trucks[truck].toPlace = place
-    trucks[truck].departure_time = departure_time
-    trucks[truck].arrival_time = departure_time + 5
-
+num_places (3, 3)
+list_place = [[Place() for _ in range(num_places[i])] for i in range(2)]
+list_truck = [Truck() for _ in range(num_trucks)]
+capacity = 20 # t
+distance = 5 # km
+travel_speed = 20 / 60 # km/min
+work_speed = 20 # t/min
+work_sigma = 1 # t
 
 
 # Initialization
-for i in range(num_trucks):
-    # truck i go to shovel i%num_places
-    go(truck=i, place=(0, i % num_places), departure_time = 0)
+for i_truck in range(num_trucks):
+    # truck i travel to shovel i%num_places
+    list_place[0][i % num_places].incoming.append(i_truck)
+
+    list_truck[i_truck].travel_destination = (0, i % num_places)
+    list_truck[i_truck].travel_remaining = 0
+    list_truck[i_truck].status = "travel"
+
 
 for _ in range(10):
-    id_truck = min(range(num_trucks), key=lambda i:trucks[i].arrival_time)
-    truck = trucks[id_truck]
+    list_remaining = []
+    for i_truck in range(num_trucks):
+        truck = list_truck[i_truck]
+        if truck.status == 'work':
+            mean = work_remaining / work_speed
+            scale = work_remaining ** 2 / work_sigma ** 2
+            remaining = rng.wald(mean, scale)
+        elif truck.status == 'travel':
+            mean = travel_remaining / travel_speed
+            scale = travel_remaining ** 2 / travel_sigma ** 2
+            remaining = rng.wald(mean, scale)
+            
+        list_remaining.append(remaining)
+        
+    id_truck_first = min(range(num_trucks), key=lambda i: list_remaining)
+    remaining_first = list_remaining[id_truck_first]
+    truck_first = list_truck[id_truck_first]
 
-    pprint(trucks)
-    action = int(input(f'A donde mando el camion {id_truck}: '))
-    go(id_truck, (1 - truck.toPlace[0], action), truck.arrival_time)
+    # update the others trucks
+    for i_truck in range(num_trucks):
+        truck = list_truck[i_truck]
+        if truck.status == 'work':
+            while True:
+                w_t = rng.normal(0, np.sqrt(remaining_first))
+                displacement = work_speed * remaining_first + work_sigma * w_t
+                if truck.work_remaining > displacement:
+                    truck.work_remaining -= displacement
+                    break
+            
+        elif truck.status == 'travel':
+            while True:
+                w_t = rng.normal(0, np.sqrt(remaining_first))
+                displacement = travel_speed * remaining_first + travel_sigma * w_t
+                if truck.travel_remaining > displacement:
+                    truck.travel_remaining -= displacement
+                    break
+        elif truck.status == 'queue':
+            pass
+
+
+    # update the first_truck
+    if truck_first.status == 'work':
+        action = int(input(f'A donde mando el camion {id_truck}: '))
+
+        truck_first.status = 'travel'
+        truck_first.travel_origin = truck_first.travel_destination
+        truck_first.travel_destination = (1 - truck_first.travel_destination[0], action)
+        truck_first.travel_remaining = distance
+
+        if list_place[truck_first.travel_destination].queue:
+            truck_next = list_place[truck.travel_destination].queue.pop(0)
+            truck_next.status = 'work'
+            trck_next.work_place = truck_next.travel_destination
+            truck_next.work_remaining = capacity
+
+    elif truck_first.status == 'travel':
+        if list_place[truck.travel_destination].queue:
+            truck_first.status = 'queue'
+        else:
+            truck_first.status = "work
+            
