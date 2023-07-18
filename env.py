@@ -8,6 +8,7 @@ from numpy.random import default_rng
 
 @dataclass
 class Place:
+    current_truck: int | None = None
     queue: list[int] = field(default_factory=list)
 
 
@@ -28,38 +29,59 @@ list_place = [[Place() for _ in range(num_places[i])] for i in range(2)]
 list_truck = [Truck() for _ in range(num_trucks)]
 capacity = 20 # t
 distance = 5 # km
-travel_speed = 20 / 60 # km/min
+travel_speed = 30 / 60 # km/min
 work_speed = 20 # t/min
-work_sigma = 1 # t
-travel_sigma = 1
+work_sigma = 0 # t
+travel_sigma = 0
 
 
 # Initialization
 for i_truck in range(num_trucks):
     # truck i travel to shovel i%num_places
     list_truck[i_truck].travel_destination = (0, i_truck % num_places[0])
+    list_truck[i_truck].travel_origin = (1, i_truck % num_places[0])
     list_truck[i_truck].travel_remaining = 2
     list_truck[i_truck].status = "travel"
 
 
 for _ in range(20):
-    list_remaining = []
+    # Encontrar la lista de tiempos faltantes
+    list_time_remaining = []
     for i_truck in range(num_trucks):
         truck = list_truck[i_truck]
         if truck.status == 'work':
-            mean = truck.work_remaining / work_speed
-            scale = truck.work_remaining ** 2 / work_sigma ** 2
+            remaining = truck.work_remaining
+            speed = work_speed
+            sigma = work_sigma
         elif truck.status == 'travel':
-            mean = truck.travel_remaining / travel_speed
-            scale = truck.travel_remaining ** 2 / travel_sigma ** 2
-        remaining = 0 if mean == 0 else rng.wald(mean, scale)
+            remaining = truck.travel_remaining
+            speed = travel_speed
+            sigma = travel_sigma
 
-        list_remaining.append(remaining)
+        mean = remaining / speed
+
+        try:
+            scale = remaining ** 2 / sigma ** 2
+        except ZeroDivisionError:
+            time_remaining = mean
+        else:
+            if mean == 0:
+                time_remaining = 0
+            else:
+                time_remaining = rng.wald(mean, scale)
+
+
+        list_time_remaining.append(time_remaining)
         
-    id_truck_first = min(range(num_trucks), key=list_remaining.__getitem__)
-    remaining_first = list_remaining[id_truck_first]
+    # Encontrar el camion que hace el evento m'as proximo
+    id_truck_first = min(range(num_trucks), key=list_time_remaining.__getitem__)
+    remaining_first = list_time_remaining[id_truck_first]
+    print()
+    print(f"{list_time_remaining}")
+    print(f"{[truck.status for truck in list_truck]}")
     print(f"{id_truck_first=} {remaining_first=}")
     truck_first = list_truck[id_truck_first]
+
 
     # update the others trucks
     for i_truck in range(num_trucks):
@@ -84,7 +106,6 @@ for _ in range(20):
         elif truck.status == 'queue':
             pass
 
-
     # update the first_truck
     if truck_first.status == 'work':
         action = int(input(f'A donde mando el camion {id_truck_first}: '))
@@ -94,18 +115,24 @@ for _ in range(20):
         truck_first.travel_destination = (1 - truck_first.travel_destination[0], action)
         truck_first.travel_remaining = distance
 
-        if list_place[truck_first.travel_destination[0]][truck_first.travel_destination[1]].queue:
-            i_truck_next = list_place[truck.travel_destination].queue.pop(0)
+        place = list_place[truck_first.travel_destination[0]][truck_first.travel_destination[1]]
+        place.current_truck = None
+
+        if place.queue:
+            i_truck_next = place.queue.pop(0)
             truck_next = list_truck[i_truck_next]
             truck_next.status = 'work'
             truck_next.work_place = truck_next.travel_destination
             truck_next.work_remaining = capacity
+            place.current_truck = i_truck_next
 
     elif truck_first.status == 'travel':
-        if list_place[truck_first.travel_destination[0]][ truck_first.travel_destination[1]].queue:
+        place = list_place[truck_first.travel_destination[0]][truck_first.travel_destination[1]]
+        if place.current_truck is not None:
             truck_first.status = 'queue'
-            list_place[truck.travel_destination]
+            place.queue.append(id_truck_first)
         else:
             truck_first.status = "work"
             truck_first.work_place = truck_first.travel_destination
             truck_first.work_remaining = capacity
+            place.current_truck = id_truck_first
