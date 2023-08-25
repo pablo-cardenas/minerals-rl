@@ -12,8 +12,8 @@ for episode in count():
 
     for t in count():
         # Select an action
-        action = env.action_space.sample()
-        #action = int(input("Ingrese acción: "))
+        #action = env.action_space.sample()
+        action = int(input("Ingrese acción: "))
 
         # Perform action in the enviroment
         next_observation, reward, terminated, truncated, info = env.step(
